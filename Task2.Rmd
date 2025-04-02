@@ -1,0 +1,113 @@
+---
+title: "Task 2: Data Analysis and Visualization"
+output: pdf_document
+author: 'Naomi Carrigg'
+date: "4/2/25"
+---
+
+```{r}
+# load necessary packages
+library(tidyverse)
+```
+
+```{r}
+# initial look at the data
+
+committees <- read.csv("~/Desktop/MIT_tech_test/analyst_csvs/committees.csv")
+head(committees) # committee ids, house or senate, name
+
+filings <- read.csv("~/Desktop/MIT_tech_test/analyst_csvs/filings.csv")
+head(filings) 
+# filing id, lobbyist org id, client id, amount, year, 
+# filing period --> could use amount from here
+
+filings_bills <- read.csv(
+  "~/Desktop/MIT_tech_test/analyst_csvs/filings_bills.csv")
+head(filings_bills) # filing id, issue code, bill id 
+
+bills <- read.csv("~/Desktop/MIT_tech_test/analyst_csvs/bills.csv")
+head(bills) 
+# bill id, senate/house, bill num, congress num, title, 
+# status --> how many committees moved bills out of committee
+
+bills_committees <- read.csv(
+  "~/Desktop/MIT_tech_test/analyst_csvs/bills_committees.csv")
+head(bills_committees) # committee id, bill id
+
+registrants <- read.csv("~/Desktop/MIT_tech_test/analyst_csvs/registrants.csv")
+head(registrants) # registrant id, registrant name 
+
+issue_codes <- read.csv("~/Desktop/MIT_tech_test/analyst_csvs/issue_codes.csv")
+head(issue_codes) # issue code, general issue name
+```
+
+
+
+- We will define the "importance" of a Committee by the amount of lobbying activity and money present in each Committee. 
+
+```{r}
+# filings df has amount, join with filings_bills to find bill_id, 
+# join with bills_committees to find committee id
+filings %>% merge(filings_bills, by = 'filing_uuid') -> df
+df %>% merge(bills_committees, by = 'bill_id') -> df2
+```
+
+```{r}
+# sum the total amount of lobbying money for each committee and 
+# arrange with accordingly
+df2 %>% 
+  mutate(amount = parse_number(amount)) %>% 
+  group_by(committee_id) %>% 
+  summarize(amount = sum(amount, na.rm = T)) %>% 
+  arrange(desc(amount)) -> amts
+```
+
+```{r}
+# merge to find the committee names for easy visualization
+amts %>% 
+  merge(committees, by = 'committee_id') %>% 
+  arrange(desc(amount)) -> totals
+
+head(totals)
+tail(totals)
+```
+
+
+- According to the definition, the Committee with the most lobbying money is the House Committee on Energy and Commerce, followed in second by the House Committee on Ways and Means and third by the House Committee on the Judiciary. The Committee with the least lobbyist money present is the Senate Special Committee on Aging. 
+
+- Another way to define importance would be based on how many bills made it out of committee to show the efficiency and influence of certain committee on legislating. Likely some of the Committees with the most spending like Judiciary and Ways and Means will also have high numbers in this regard because of their importance in Congress.
+
+- Over time there does appear to be a shift in the total amount donated by lobbyists, but the same committees consistently receive more lobbyist money than others.
+```{r}
+df2 %>% 
+  mutate(amount = parse_number(amount)) %>% 
+  group_by(filing_year, committee_id) %>% 
+  summarize(amount = sum(amount, na.rm = T)) %>% 
+  arrange(desc(amount)) %>% 
+  ggplot(aes(x = filing_year, y = amount, fill = committee_id), 
+         show.legend = F) +
+  geom_col() +
+  geom_line() +
+  facet_wrap(~committee_id) +
+  xlab('Filing Year') + 
+  ylab('Amount Given by Lobbyists') +
+  theme(legend.position = 'none')
+```
+
+
+- one visualization of results, more if necessary
+```{r}
+totals %>% 
+  ggplot(aes(x = fct_reorder(committee_id,amount), y = amount)) +
+  geom_col(fill = 'blue') +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  xlab('Committee Name') + ylab('Lobbyist Amount')
+```
+
+- This analysis could be expanded on with data on the political affiliations of each Lobbyist client and registrant. The company names in the registrants.csv gives some clue on where exactly this money is coming from like the NRA tends to lobby Republican senators and is a conservative group. However not all of the registrants are so obviously politically affiliated. If there was data on both the political leanings of the group and which legislators they were donating to, this analysis could conclude if liberal or conservative politicians tend to receive more lobbying.
+
+
+
+
+
+
