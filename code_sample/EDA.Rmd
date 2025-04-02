@@ -1,0 +1,50 @@
+---
+title: "STAT_415 Project EDA"
+author: "Naomi Carrigg"
+date: "10/31/24"
+output:
+  pdf_document: 
+    toc: no
+    toc_depth: 2
+    number_sections: no
+---
+
+```{r, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+reduced_data <- readRDS('results.rds')
+```
+
+```{r}
+# Appears to be a linear relationship between the data
+reduced_data %>% 
+  ggplot(aes(x = barometric_pressure, y = carbon_monoxide)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = FALSE, color = 'red') +
+  facet_wrap(~Year)
+```
+
+```{r}
+# Create a list of histograms for the specified columns
+graph <- function(pollutant, name) {
+  ggplot(reduced_data, aes(x = pollutant)) +
+    geom_histogram(binwidth = 1, fill = 'lightblue', color = 'black', 
+                   na.rm = TRUE) +
+    labs(title = paste0('Histogram of ', name), x = name, y = 'Frequency') +
+    theme_minimal()
+}
+
+p1 = graph(reduced_data$barometric_pressure, 'Barometric Pressure')
+p2 = graph(reduced_data$carbon_monoxide, 'Carbon Monoxide')
+p3 = graph(reduced_data$nitrogen_dioxide_no, 'Nitrogen Dioxide')
+p4 = graph(reduced_data$outdoor_temperature, 'Temperature')
+grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+
+p5 = graph(reduced_data$pm__local_conditions, 'Particulate Matter')
+p6 = graph(reduced_data$relative_humidity, 'Relative Humidity')
+p7 = graph(reduced_data$wind_direction__resultant, 'Wind Direction')
+p8 = graph(reduced_data$wind_speed__resultant, 'Wind Speed')
+grid.arrange(p5, p6, p7, p8, nrow = 2, ncol = 2)
+```

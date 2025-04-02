@@ -1,0 +1,185 @@
+---
+title: "STAT_415 - Regression_Analysis"
+author: "Naomi Carrigg"
+date: "10/31/24"
+output:
+  pdf_document: 
+    toc: no
+    toc_depth: 2
+    number_sections: no
+---
+
+```{r, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(lmtest)
+library(car)
+library(glmnet)
+
+reduced_data <- readRDS('results.rds')
+AirQuality_data_aqi_reduced <- readRDS('airquality_data_aqi_red.rds')
+```
+
+# Model Fitting
+## Model 1: Predicting Carbon Monoxide with Nitrogen Dioxide and season using AQI
+```{r}
+model_1_data <- na.omit(subset(AirQuality_data_aqi_reduced, 
+                               select = c("Season", "Month", "Year", 
+                                          "SITE_NAME", "nitrogen_dioxide_no", 
+                                          "carbon_monoxide")))
+model_1 <- lm(carbon_monoxide ~ Season + nitrogen_dioxide_no, 
+              data = model_1_data)
+summary(model_1)
+```
+
+## Hypothesis test for Overall Significance
+
+```{r}
+null <- lm(carbon_monoxide ~ 1 , data = model_1_data)
+anova(null,model_1)
+```
+Model is significant overall.
+
+## Model 2: Predicting Nitrogen Dioxide AQI using all other predictors. Attempt to see if relationship exists in the opposite direction and whether location has an effect.
+```{r}
+model_2_data <- na.omit(subset(AirQuality_data_aqi_reduced, 
+                               select = c("Season", "Month", "Year", 
+                                          "SITE_NAME", "nitrogen_dioxide_no")))
+
+model_2_red <- lm(nitrogen_dioxide_no ~ SITE_NAME + Season + Month + Year, 
+                  data = model_1_data)
+
+model_2_full <- lm(nitrogen_dioxide_no ~ SITE_NAME + Season + Month + Year + 
+                     carbon_monoxide, data = model_1_data)
+
+anova(model_2_red, model_2_full)
+```
+
+```{r}
+summary(model_2_full)
+summary(model_2_red)
+```
+
+Carbon monoxide can be dropped from the model when we include season, month, year, and Site_Name. Now we perform best subset selection on this model
+
+```{r}
+step(model_2_red, direction = "both")
+```
+Only site name and month are retained, using Anacostia NE and April as baselines
+
+```{r}
+model_fin <- lm(nitrogen_dioxide_no ~ SITE_NAME + Month, data = model_2_data)
+summary(model_fin)
+```
+
+
+```{r}
+plot(model_fin$resi)
+```
+
+
+```{r}
+qqnorm(model_fin$resi)
+qqline(model_fin$resi)
+```
+
+
+Residual plots indicate that linear model is appropriate.
+
+```{r}
+dwtest(model_fin)
+```
+Durbin Watson test reveals autocorrelation in this model
+
+
+
+```{r}
+n <- 119 # sample size
+p <- 2 # 5 parameters
+
+par(mfrow = c(2, 2))
+plot(rstudent(model_fin), ylab = 'Studentized Deleted Residual')
+abline(qt(1-0.1/(2*n), df = n - p - 1), 0, lty = 2)
+abline(qt(0.1/(2*n), df = n - p - 1), 0, lty = 2)
+
+plot(dffits(model_fin), ylab = 'DF Fits')
+abline(1, 0, lty = 2)
+abline(1, 0, lty = 2)
+
+plot(cooks.distance(model_fin), ylab = "Cook's Distance")
+abline(qf(0.5, df1 = 5, df2 = n - p), 0, lty = 2)
+
+plot(hatvalues(model_fin), ylab = 'Leverege')
+abline(2*p/n, 0, lty = 2)
+
+vif(model_fin)
+
+influenceIndexPlot(model_fin)
+```
+
+## Model 3: Does weather have an affect?
+
+```{r}
+model_3_data <- na.omit(subset(reduced_data, 
+                               select = c("Season", "Month", "Year", 
+                                          "SITE_NAME", "nitrogen_dioxide_no", "carbon_monoxide","outdoor_temperature", "relative_humidity"	, 
+                                          "wind_direction__resultant", 
+                                          "wind_speed__resultant")))
+```
+
+```{r}
+model_3 <- lm(nitrogen_dioxide_no ~ ., data = model_3_data)
+summary(model_3)
+```
+
+```{r}
+step(model_3, direction = "both")
+```
+
+```{r}
+model_3_step <- lm(formula = nitrogen_dioxide_no ~ Month + Year + SITE_NAME + 
+    carbon_monoxide + outdoor_temperature + relative_humidity + 
+    wind_direction__resultant + wind_speed__resultant, data = model_3_data)
+summary(model_3_step)
+```
+
+## ANOVA test for significance of weather predictors
+```{r}
+model_3_red <- lm(formula = nitrogen_dioxide_no ~ Month + Year + SITE_NAME + 
+    carbon_monoxide, data = model_3_data)
+
+anova(model_3_red, model_3_step)
+```
+All weather variables cannot be dropped from the model, weather has some impact on concentration. 
+
+## Ridge Regression to account for multicollinearity
+```{r}
+x_var <- model.matrix(model_3_step)
+y_var <- as.numeric(model_3_data[[ "nitrogen_dioxide_no"]])
+lambda_seq <- 10^seq(2, -1, by = -0.1)
+
+ridge <- glmnet(x_var, y_var, alpha = 0, lambda = seq(0, 10, 0.01))
+plot(ridge)
+
+ridge_cv <- cv.glmnet(x_var, y_var, alpha = 0, lambda = seq(0, 10, 0.01))
+best_lambda <- ridge_cv$lambda.min
+
+ridge_out <- glmnet(x_var, y_var, alpha = 0, lambda = best_lambda)
+summary(ridge_out)
+coef(ridge_out)
+
+predict(ridge, ridge_cv$lambda.min, newx = x_var, type = 'coefficients')
+
+plot(ridge_cv)
+
+y_predicted <- predict(ridge_out, s = best_lambda, newx = x_var)
+sst <- sum((y_var - mean(y_var))^2)
+sse <- sum((y_predicted - y_var)^2)
+rsq <- 1 - sse/sst
+rsq
+
+best_lambda
+```
+

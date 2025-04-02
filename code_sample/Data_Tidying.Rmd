@@ -1,0 +1,102 @@
+---
+title: "Stat-415 Project - Tidying Data"
+author: "Naomi Carrigg"
+date: "10/31/24"
+output:
+  pdf_document: 
+    toc: no
+    toc_depth: 2
+    number_sections: no
+---
+
+```{r, results='hide'}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+```
+
+```{r, results = 'hide'}
+## cleaning/tidying the data
+AirQuality_data_raw <- read_csv("Air_Quality_History.csv")
+
+AirQuality_data <- AirQuality_data_raw %>%
+  mutate(across(starts_with("PARAMETER_NAME"), 
+                ~ str_replace_all(., " ", "_") %>%
+                  str_to_lower() %>%
+                  str_remove_all("[^a-z_]"))) %>%
+  mutate(SITE_NAME = case_match(SITE_NUM, 
+                                41 ~ "River_Terrace_NE", 
+                                43 ~ "McMillan_NW", 
+                                50 ~ "Takoma_Recreation_NW",
+                                51 ~ "Anacostia_Freeway_NE", 
+                                53 ~ "Greenleaf_Recreation_SW", 
+                                42 ~ "Hains_Point_SW")) %>%
+  select(-c(LONGITUDE, LATITUDE, STATE_CODE, STATE_NAME, COUNTY_NAME, POC, 
+            DATUM, OBJECTID, UNITS_OF_MEASURE, METHOD_CODE, METHOD_NAME, 
+            AQSID, CITY_NAME, CBSA_NAME, ADDRESS, LOCAL_SITE_NAME, 
+            SAMPLE_DURATION, EVENT_TYPE)) %>%
+  mutate(DATETIME_LOCAL = as.POSIXct(DATETIME_LOCAL, tz = "UTC"),
+         Year = year(DATETIME_LOCAL),
+         Month = month(DATETIME_LOCAL, label = TRUE, abbr = TRUE) %>% 
+           as.character()) %>%
+  mutate(Season = case_when(
+    Month %in% c("Dec", "Jan", "Feb") ~ 'Winter',
+    Month %in% c("Mar", "Apr", "May") ~ 'Spring',
+    Month %in% c("Jun", "Jul", "Aug") ~ 'Summer',
+    TRUE ~ 'Fall'
+  ))
+
+# Grouping and summarizing
+AirQuality_data_means <- AirQuality_data %>%
+  group_by(Season, SITE_NAME, Month, Year, PARAMETER_NAME) %>%
+  summarize(ARITHMETIC_MEAN = mean(ARITHMETIC_MEAN, na.rm = TRUE), 
+            .groups = 'drop')
+
+AirQuality_data_aqi <- AirQuality_data %>%
+  group_by(Season, SITE_NAME, Month, Year, PARAMETER_NAME) %>%
+  summarize(AQI = mean(AQI, na.rm = TRUE), .groups = 'drop')
+
+# Pivot the data, 
+# this is where the issue is with the NAs because there are some cases which don't have any data for the 5  groups, we can keep these and just have a ton of NA's or choose which pollutants we want to focus on
+AirQuality_data_means <- AirQuality_data_means %>%
+  pivot_wider(names_from = PARAMETER_NAME, values_from = ARITHMETIC_MEAN)
+
+AirQuality_data_aqi <- AirQuality_data_aqi %>%
+  pivot_wider(names_from = PARAMETER_NAME, values_from = AQI)
+```
+
+```{r}
+tail(AirQuality_data_means)
+tail(AirQuality_data_aqi)
+```
+
+
+```{r}
+# Columns with at least 1 non-NA AQI
+AirQuality_data_aqi_reduced <- subset(AirQuality_data_aqi, 
+                                      select = c("Season", "SITE_NAME",
+                                                 "Month", "Year", 
+                                                 "carbon_monoxide",
+                                                 "nitrogen_dioxide_no", 
+                                                 "pm__local_conditions", 
+                                                 "ozone", "pm_total_um_stp",
+                                                 "sulfur_dioxide"))
+```
+
+```{r}
+# means df with columns of interest
+reduced_data <- AirQuality_data_means %>% 
+  subset(select = c("Season", "SITE_NAME","Month", "Year", 
+                    "barometric_pressure", "carbon_monoxide", 
+                    "nitrogen_dioxide_no","outdoor_temperature", 
+                    "pm__local_conditions","relative_humidity"	, 
+                    "wind_direction__resultant", "wind_speed__resultant"))
+```
+
+```{r}
+saveRDS(reduced_data, file = 'results.rds')
+
+saveRDS(AirQuality_data_aqi_reduced, file = 'airquality_data_aqi_red.rds')
+```
+
