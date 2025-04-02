@@ -28,7 +28,9 @@ PHARMACEUTICAL RESEARCH AND MANUFACTURERS OF AMERICA	|24700000.00
 - According to the definition, the Committee with the most lobbying money is the House Committee on Energy and Commerce, followed in second by the House Committee on Ways and Means and third by the House Committee on the Judiciary. The Committee with the least lobbyist money present is the Senate Special Committee on Aging.
 - Another way to define importance would be based on how many bills made it out of committee to show the efficiency and influence of certain committee on legislating. Likely some of the Committees with the most spending like Judiciary and Ways and Means will also have high numbers in this regard because of their importance in Congress.
 - Over time there does appear to be a shift in the total amount donated by lobbyists, but the same committees consistently receive more lobbyist money than others.
+ ![RPlot]('plot1.png)
 - This analysis could be expanded on with data on the political affiliations of each Lobbyist client and registrant. The company names in the registrants.csv gives some clue on where exactly this money is coming from like the NRA tends to lobby Republican senators and is a conservative group. However not all of the registrants are so obviously politically affiliated. If there was data on both the political leanings of the group and which legislators they were donating to, this analysis could conclude if liberal or conservative politicians tend to receive more lobbying.
+   ![RPlot]('plot2.png)
 
 
 
